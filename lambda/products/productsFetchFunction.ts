@@ -1,6 +1,10 @@
 import {APIGatewayProxyEvent, APIGatewayProxyResult, Context} from "aws-lambda"
 import {ProductRepository} from "/opt/nodejs/productsLayer";
 import {DynamoDB} from "aws-sdk"
+import * as AWSXRay from "aws-xray-sdk"
+
+//Monitora as funcoes que utilizam o sdk 
+AWSXRay.captureAWS(require("aws-sdk"))
 
 //Busca nas variaveis de ambiente a variavel PRODUCTS_DDB, que foi salva na Stack App
 const productsDdb = process.env.PRODUCTS_DDB!;

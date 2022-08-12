@@ -1,25 +1,26 @@
-import {DocumentClient} from "aws-sdk/clients/dynamodb"
-import {v4 as uuid} from "uuid"
+import { DocumentClient } from "aws-sdk/clients/dynamodb"
+import { v4 as uuid } from "uuid"
 
-export interface Product{
+export interface Product {
     id: string,
     productName: string,
-    code: string, 
+    code: string,
     price: number,
     model: string,
+    productUrl: string
 }
 
-export class ProductRepository{
+export class ProductRepository {
     private ddbClient: DocumentClient
-    private productsDdb:string
+    private productsDdb: string
 
-    constructor(ddbClient: DocumentClient, productsDdb:string){
+    constructor(ddbClient: DocumentClient, productsDdb: string) {
         this.ddbClient = ddbClient
         this.productsDdb = productsDdb
     }
 
     //return all items of the table
-    async getAllProducts(): Promise<Product[]>{
+    async getAllProducts(): Promise<Product[]> {
         const data = await this.ddbClient.scan({
             TableName: this.productsDdb,
 
@@ -37,9 +38,9 @@ export class ProductRepository{
             }
         }).promise()
 
-        if(data.Item ){
+        if (data.Item) {
             return data.Item as Product;
-        }else{
+        } else {
             throw new Error("Product not found")
         }
     }
@@ -56,7 +57,7 @@ export class ProductRepository{
     }
 
     //Delete product
-    async deleteProduct(productId: string): Promise<Product>{
+    async deleteProduct(productId: string): Promise<Product> {
         const data = await this.ddbClient.delete({
             TableName: this.productsDdb,
             Key: {
@@ -66,15 +67,15 @@ export class ProductRepository{
             ReturnValues: "ALL_OLD"
         }).promise()
 
-        if(data.Attributes){
+        if (data.Attributes) {
             return data.Attributes as Product
-        }else{
+        } else {
             throw new Error("Product not found")
         }
     }
 
     //Update product attributes
-    async updateProduct(productId: string, product: Product): Promise<Product>{
+    async updateProduct(productId: string, product: Product): Promise<Product> {
         const data = await this.ddbClient.update({
             TableName: this.productsDdb,
             Key: {
@@ -84,17 +85,18 @@ export class ProductRepository{
             ConditionExpression: 'attribute_exists(id)',
             //Retorna o que foi alterado
             ReturnValues: "UPDATED_NEW",
-            UpdateExpression: 'set productName = :n, code = :c, price = :p, model = :m',
+            UpdateExpression: 'set productName = :n, code = :c, price = :p, model = :m, productUrl = :u',
             ExpressionAttributeValues: {
                 ":n": product.productName,
                 ":c": product.code,
                 ":p": product.price,
-                ":m": product.model
+                ":m": product.model,
+                ":u": product.productUrl
             }
         }).promise()
 
         data.Attributes!.id = productId;
         return data.Attributes as Product;
     }
-    
+
 }

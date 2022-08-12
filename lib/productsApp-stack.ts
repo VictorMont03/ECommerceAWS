@@ -54,7 +54,7 @@ export class ProductsAppStack extends cdk.Stack{
             sourceMap: false
         }, environment: {
             PRODUCTS_DDB: this.productsDdb.tableName
-        }, layers: [productsLayer]})
+        }, layers: [productsLayer], tracing: lambda.Tracing.ACTIVE})
 
         //Permitindo que a função possa LER na tabela
         this.productsDdb.grantReadData(this.productsFetchHandler)
@@ -67,7 +67,7 @@ export class ProductsAppStack extends cdk.Stack{
                 PRODUCTS_DDB: this.productsDdb.tableName
             }, 
             //Libera a utilização dos trechos de código por esta função lambda
-            layers: [productsLayer]})
+            layers: [productsLayer],tracing: lambda.Tracing.ACTIVE})
 
         //Permitindo que a função possa GERENCIAR a tabela
         this.productsDdb.grantWriteData(this.productsAdminHandler)
