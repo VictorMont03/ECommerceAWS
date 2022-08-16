@@ -134,6 +134,8 @@ function sendProductEvent(
       FunctionName: productEventsFunctionName,
       Payload: JSON.stringify(event),
       //Poder capturar o retorno || A invocação é sincrona
+      //RequestResponse -> Espera a finalizacao da funcao de admin para terminar sua execucao
+      //Event -> Ao ser chamada tenta terminar sua execução o mais rápido possível
       InvocationType: "RequestResponse",
     })
     .promise();

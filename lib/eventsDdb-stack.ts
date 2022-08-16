@@ -11,6 +11,7 @@ export class EventsDdbStack extends cdk.Stack {
     super(scope, id, props);
 
     this.table = new dynamodb.Table(this, "EventsDdb", {
+      //mudar para events no proximo dploy
       tableName: "eventsd",
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       partitionKey: {
