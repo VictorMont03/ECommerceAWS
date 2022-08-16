@@ -1,75 +1,152 @@
-import * as lambda from "aws-cdk-lib/aws-lambda"
+import * as lambda from "aws-cdk-lib/aws-lambda";
 
-import * as lambdaNodeJS from "aws-cdk-lib/aws-lambda-nodejs"
+import * as lambdaNodeJS from "aws-cdk-lib/aws-lambda-nodejs";
 
-import * as cdk from "aws-cdk-lib"
+import * as cdk from "aws-cdk-lib";
 
-import {Construct} from "constructs"
+import { Construct } from "constructs";
 
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
-import * as ssm from "aws-cdk-lib/aws-ssm"
+import * as ssm from "aws-cdk-lib/aws-ssm";
 
-export class ProductsAppStack extends cdk.Stack{
-    readonly productsFetchHandler: lambdaNodeJS.NodejsFunction
+interface ProductsAppStackprops extends cdk.StackProps {
+  eventsDdb: dynamodb.Table;
+}
 
-    readonly productsAdminHandler: lambdaNodeJS.NodejsFunction
+export class ProductsAppStack extends cdk.Stack {
+  readonly productsFetchHandler: lambdaNodeJS.NodejsFunction;
 
-    readonly productsDdb: dynamodb.Table;
+  readonly productsAdminHandler: lambdaNodeJS.NodejsFunction;
 
-    constructor(scope: Construct, id: string, props?: cdk.StackProps){
-        super(scope, id, props)
+  readonly productsDdb: dynamodb.Table;
 
-        this.productsDdb = new dynamodb.Table(this, "ProductsDdb", {
-            tableName: "products",
-            //politica de remoção da tabela: destruir caso destrua a infra
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
+  constructor(scope: Construct, id: string, props: ProductsAppStackprops) {
+    super(scope, id, props);
 
-            partitionKey: {
-                name: "id",
-                type: dynamodb.AttributeType.STRING
-            },
-            //Modo de cobrança 
-            billingMode: dynamodb.BillingMode.PROVISIONED,
-            //Capacidade de leitura 1 leitura por segundo
-            readCapacity: 1,
-            //Capacidade de escrita 1 por segundo
-            writeCapacity: 1,
-        })
+    this.productsDdb = new dynamodb.Table(this, "ProductsDdb", {
+      tableName: "products",
+      //politica de remoção da tabela: destruir caso destrua a infra
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
 
-        //LAYERS PRODUCTS -------------------------------------------------
-        //Resgatando layer que salvei no ssm
-        const productsLayerArn = ssm.StringParameter.valueForStringParameter(this, "ProductsLayerVersionArn")
+      partitionKey: {
+        name: "id",
+        type: dynamodb.AttributeType.STRING,
+      },
+      //Modo de cobrança
+      billingMode: dynamodb.BillingMode.PROVISIONED,
+      //Capacidade de leitura 1 leitura por segundo
+      readCapacity: 1,
+      //Capacidade de escrita 1 por segundo
+      writeCapacity: 1,
+    });
 
-        //Mesmo recurso layer criado na stack de layers porem aqui passado como parametro
-        const productsLayer = lambda.LayerVersion.fromLayerVersionArn(this, "ProductsLayerVersionArn", productsLayerArn)
+    //LAYERS PRODUCTS -------------------------------------------------
+    //Resgatando layer que salvei no ssm
+    const productsLayerArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      "ProductsLayerVersionArn"
+    );
 
+    //Mesmo recurso layer criado na stack de layers porem aqui passado como parametro
+    const productsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "ProductsLayerVersionArn",
+      productsLayerArn
+    );
 
+    //Resgatando layer que salvei no ssm
+    const productEventsLayerArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      "ProductEventsLayerVersionArn"
+    );
 
-        //FIM LAYERS ------------------------------------------------------
+    //Mesmo recurso layer criado na stack de layers porem aqui passado como parametro
+    const productEventsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "ProductEventsLayerVersionArn",
+      productEventsLayerArn
+    );
 
-        //FUNÇÃO GET PRODUCTS 
-        this.productsFetchHandler = new lambdaNodeJS.NodejsFunction(this, "ProductsFetchFunction", {functionName: "ProductsFetchFunction", entry: "lambda/products/productsFetchFunction.ts", handler: "handler", memorySize: 128, timeout: cdk.Duration.seconds(5), bundling: {
-            minify: true,
-            sourceMap: false
-        }, environment: {
-            PRODUCTS_DDB: this.productsDdb.tableName
-        }, layers: [productsLayer], tracing: lambda.Tracing.ACTIVE})
+    //FIM LAYERS ------------------------------------------------------
 
-        //Permitindo que a função possa LER na tabela
-        this.productsDdb.grantReadData(this.productsFetchHandler)
+    //FUNCTIONS AT EVENTS
+    const productEventsHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "ProductsEventsFunction",
+      {
+        functionName: "ProductsEventsFunction",
+        entry: "lambda/products/productEventsFunction.ts",
+        handler: "handler",
+        memorySize: 128,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          EVENTS_DDB: props.eventsDdb.tableName,
+        },
+        layers: [productEventsLayer],
+        tracing: lambda.Tracing.ACTIVE,
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
 
-        this.productsAdminHandler = new lambdaNodeJS.NodejsFunction(this,
-            "ProductsAdminHandler", {functionName: "ProductsAdminHandler", entry: "lambda/products/productsAdminFunction.ts", handler: "handler", memorySize: 128, timeout: cdk.Duration.seconds(5), bundling: {
-                minify: true,
-                sourceMap: false
-            }, environment: {
-                PRODUCTS_DDB: this.productsDdb.tableName
-            }, 
-            //Libera a utilização dos trechos de código por esta função lambda
-            layers: [productsLayer],tracing: lambda.Tracing.ACTIVE})
+    props.eventsDdb.grantWriteData(productEventsHandler);
 
-        //Permitindo que a função possa GERENCIAR a tabela
-        this.productsDdb.grantWriteData(this.productsAdminHandler)
-    }
+    //FUNÇÃO GET PRODUCTS
+    this.productsFetchHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "ProductsFetchFunction",
+      {
+        functionName: "ProductsFetchFunction",
+        entry: "lambda/products/productsFetchFunction.ts",
+        handler: "handler",
+        memorySize: 128,
+        timeout: cdk.Duration.seconds(5),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          PRODUCTS_DDB: this.productsDdb.tableName,
+        },
+        layers: [productsLayer],
+        tracing: lambda.Tracing.ACTIVE,
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    //Permitindo que a função possa LER na tabela
+    this.productsDdb.grantReadData(this.productsFetchHandler);
+
+    this.productsAdminHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "ProductsAdminHandler",
+      {
+        functionName: "ProductsAdminHandler",
+        entry: "lambda/products/productsAdminFunction.ts",
+        handler: "handler",
+        memorySize: 128,
+        timeout: cdk.Duration.seconds(5),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          PRODUCTS_DDB: this.productsDdb.tableName,
+          PRODUCT_EVENTS_FUNCTION_NAME: productEventsHandler.functionName,
+        },
+        //Libera a utilização dos trechos de código por esta função lambda
+        layers: [productsLayer, productEventsLayer],
+        tracing: lambda.Tracing.ACTIVE,
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    //Permitindo que a função possa GERENCIAR a tabela
+    this.productsDdb.grantWriteData(this.productsAdminHandler);
+    productEventsHandler.grantInvoke(this.productsAdminHandler);
+  }
 }
