@@ -52,5 +52,25 @@ export class ProductsAppLayersStack extends cdk.Stack {
       parameterName: "ProductEventsLayerVersionArn",
       stringValue: productEventsLayers.layerVersionArn,
     });
+
+    //CINEMA
+
+    const moviesLayers = new lambda.LayerVersion(this, "MoviesLayer", {
+      //localização da função
+      code: lambda.Code.fromAsset("lambda/products/layers/moviesLayer"),
+      //versoes do node compativeis
+      compatibleRuntimes: [lambda.Runtime.NODEJS_14_X],
+      //nome do layer | console do lambda
+      layerVersionName: "MoviesLayer",
+      //estrategia de remoção | RETAIN mantem o layer msm q apague a stack
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    //salvando layer no ssm
+    new ssm.StringParameter(this, "MoviesLayerVersionArn", {
+      parameterName: "MoviesLayerVersionArn",
+      stringValue: moviesLayers.layerVersionArn,
+      type: ssm.ParameterType.STRING,
+    });
   }
 }

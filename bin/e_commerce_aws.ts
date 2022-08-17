@@ -6,6 +6,9 @@ import { ECommerceApiStack } from "../lib/ecommerceApi-stack";
 import { ProductsAppLayersStack } from "../lib/productsAppLayers-stack";
 import { EventsDdbStack } from "../lib/eventsDdb-stack";
 
+//Cinema
+import { MoviesAppStack } from "../lib/moviesApp-stack";
+
 const app = new cdk.App();
 
 //Ditando região e conta a qual a aplicacao está vinculada
@@ -41,15 +44,24 @@ const productsAppStack = new ProductsAppStack(app, "ProductsApp", {
   tags: tags,
   env: env,
 });
+
+const moviesAppStack = new MoviesAppStack(app, "MoviesApp", {
+  tags: tags,
+  env: env,
+});
 //Stack de produtos depende indiretamente da stack de layers
+moviesAppStack.addDependency(productsAppLayersStack);
 productsAppStack.addDependency(productsAppLayersStack);
 productsAppStack.addDependency(eventsDdbStack);
 
 const eCommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
   productsFetchHandler: productsAppStack.productsFetchHandler,
   productsAdminHandler: productsAppStack.productsAdminHandler,
+  moviesFetchHandler: moviesAppStack.moviesFetchHandler,
+  moviesAdminHandler: moviesAppStack.moviesAdminHandler,
   tags: tags,
   env: env,
 });
 
 eCommerceApiStack.addDependency(productsAppStack);
+eCommerceApiStack.addDependency(moviesAppStack);
