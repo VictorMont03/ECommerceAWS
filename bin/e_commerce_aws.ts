@@ -5,6 +5,8 @@ import { ProductsAppStack } from "../lib/productsApp-stack";
 import { ECommerceApiStack } from "../lib/ecommerceApi-stack";
 import { ProductsAppLayersStack } from "../lib/productsAppLayers-stack";
 import { EventsDdbStack } from "../lib/eventsDdb-stack";
+import { OrdersAppLayersStack } from "../lib/ordersAppLayers-stack";
+import { OrdersAppStack } from "../lib/ordersApp-stack";
 
 //Cinema
 import { MoviesAppStack } from "../lib/moviesApp-stack";
@@ -54,14 +56,33 @@ moviesAppStack.addDependency(productsAppLayersStack);
 productsAppStack.addDependency(productsAppLayersStack);
 productsAppStack.addDependency(eventsDdbStack);
 
+//ORDERS
+const ordersAppLayerStack = new OrdersAppLayersStack(app, "OrdersAppLayers", {
+  tags: tags,
+  env: env,
+});
+
+const ordersAppStack = new OrdersAppStack(app, "OrdersApp", {
+  tags: tags,
+  env: env,
+  productsDdb: productsAppStack.productsDdb,
+  moviesDdb: moviesAppStack.moviesDdb,
+});
+
+ordersAppStack.addDependency(productsAppStack);
+ordersAppStack.addDependency(moviesAppStack);
+ordersAppStack.addDependency(ordersAppLayerStack);
+
 const eCommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
   productsFetchHandler: productsAppStack.productsFetchHandler,
   productsAdminHandler: productsAppStack.productsAdminHandler,
   moviesFetchHandler: moviesAppStack.moviesFetchHandler,
   moviesAdminHandler: moviesAppStack.moviesAdminHandler,
+  ordersHandler: ordersAppStack.ordersHandler,
   tags: tags,
   env: env,
 });
 
 eCommerceApiStack.addDependency(productsAppStack);
 eCommerceApiStack.addDependency(moviesAppStack);
+eCommerceApiStack.addDependency(ordersAppStack);

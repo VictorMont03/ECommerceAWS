@@ -1,6 +1,11 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { v4 as uuid } from "uuid";
 
+export interface Chair {
+  id: string;
+  reservation: boolean;
+}
+
 export interface Movie {
   id: string;
   movieTitle: string;
@@ -9,12 +14,7 @@ export interface Movie {
   movieCategory: string;
   moviePoster: string;
   movieLanguage: string;
-  movieChairs: [
-    {
-      id: string;
-      reservation: boolean;
-    }
-  ];
+  movieChairs: Chair[];
 }
 
 export class MovieRepository {
@@ -53,6 +53,29 @@ export class MovieRepository {
     } else {
       throw new Error("Movie not found");
     }
+  }
+
+  //Return movies for order
+  async getMoviesByIds(moviesIds: string[]): Promise<Movie[]> {
+    const keys: {
+      id: string;
+    }[] = [];
+    moviesIds.forEach((movieId: string) => {
+      keys.push({
+        id: movieId,
+      });
+    });
+    const data = await this.ddbClient
+      .batchGet({
+        RequestItems: {
+          [this.moviesDdb]: {
+            Keys: keys,
+          },
+        },
+      })
+      .promise();
+
+    return data.Responses![this.moviesDdb] as Movie[];
   }
 
   //Create product in the table

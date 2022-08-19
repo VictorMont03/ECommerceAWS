@@ -16,6 +16,7 @@ interface ECommerceApiStackProps extends cdk.StackProps {
   productsAdminHandler: lambdaNodeJS.NodejsFunction;
   moviesFetchHandler: lambdaNodeJS.NodejsFunction;
   moviesAdminHandler: lambdaNodeJS.NodejsFunction;
+  ordersHandler: lambdaNodeJS.NodejsFunction;
 }
 
 export class ECommerceApiStack extends cdk.Stack {
@@ -44,7 +45,46 @@ export class ECommerceApiStack extends cdk.Stack {
       },
     });
 
-    //Representa como o apigateway vai invocar a funcao passada via props
+    //PRODUCTS
+    this.createProductsService(props, api);
+
+    //CINEMA
+    this.createMoviesService(props, api);
+
+    //ORDERS
+    this.createOrdersService(props, api);
+  }
+
+  private createProductsService(
+    props: ECommerceApiStackProps,
+    api: cdk.aws_apigateway.RestApi
+  ) {
+    const moviesFetchIntegration = new apigateway.LambdaIntegration(
+      props.moviesFetchHandler
+    );
+
+    const moviesResource = api.root.addResource("movies");
+    moviesResource.addMethod("GET", moviesFetchIntegration);
+
+    const moviesIdResource = moviesResource.addResource("{id}");
+    moviesIdResource.addMethod("GET", moviesFetchIntegration);
+
+    //Adm cinema
+    const moviesAdminIntegration = new apigateway.LambdaIntegration(
+      props.moviesAdminHandler
+    );
+
+    moviesResource.addMethod("POST", moviesAdminIntegration);
+
+    moviesIdResource.addMethod("PUT", moviesAdminIntegration);
+
+    moviesIdResource.addMethod("DELETE", moviesAdminIntegration);
+  }
+
+  private createMoviesService(
+    props: ECommerceApiStackProps,
+    api: cdk.aws_apigateway.RestApi
+  ) {
     const productsFetchIntegration = new apigateway.LambdaIntegration(
       props.productsFetchHandler
     );
@@ -68,28 +108,41 @@ export class ECommerceApiStack extends cdk.Stack {
     productIdResource.addMethod("PUT", productsAdminIntegration);
 
     productIdResource.addMethod("DELETE", productsAdminIntegration);
+  }
 
-    //CINEMA
-
-    const moviesFetchIntegration = new apigateway.LambdaIntegration(
-      props.moviesFetchHandler
+  private createOrdersService(
+    props: ECommerceApiStackProps,
+    api: cdk.aws_apigateway.RestApi
+  ) {
+    const ordersIntegration = new apigateway.LambdaIntegration(
+      props.ordersHandler
     );
 
-    const moviesResource = api.root.addResource("movies");
-    moviesResource.addMethod("GET", moviesFetchIntegration);
+    //resource
+    const ordersResource = api.root.addResource("orders");
 
-    const moviesIdResource = moviesResource.addResource("{id}");
-    moviesIdResource.addMethod("GET", moviesFetchIntegration);
+    //GET
+    ordersResource.addMethod("GET", ordersIntegration);
 
-    //Adm cinema
-    const moviesAdminIntegration = new apigateway.LambdaIntegration(
-      props.moviesAdminHandler
+    //DELETE
+    const orderDeletionValidator = new apigateway.RequestValidator(
+      this,
+      "OrderDeletionValidator",
+      {
+        restApi: api,
+        requestValidatorName: "OrderDeletionValidator",
+        validateRequestParameters: true,
+      }
     );
+    ordersResource.addMethod("DELETE", ordersIntegration, {
+      requestParameters: {
+        "method.request.querystring.email": true,
+        "method.request.querystring.orderId": true,
+      },
+      requestValidator: orderDeletionValidator,
+    });
 
-    moviesResource.addMethod("POST", moviesAdminIntegration);
-
-    moviesIdResource.addMethod("PUT", moviesAdminIntegration);
-
-    moviesIdResource.addMethod("DELETE", moviesAdminIntegration);
+    //POST
+    ordersResource.addMethod("POST", ordersIntegration);
   }
 }

@@ -32,6 +32,12 @@
       ],
       "/opt/nodejs/moviesLayer":[
         "lambda/products/layers/moviesLayer/nodejs/movieRepository"
+      ],
+      "/opt/nodejs/ordersLayer":[
+        "lambda/orders/layers/ordersLayer/nodejs/orderRepository"
+      ],
+      "/opt/nodejs/ordersApiLayer":[
+        "lambda/orders/layers/ordersApiLayer/nodejs/orderApi"
       ]
     },
   },
