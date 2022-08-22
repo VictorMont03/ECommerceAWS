@@ -17,6 +17,7 @@ interface ECommerceApiStackProps extends cdk.StackProps {
   moviesFetchHandler: lambdaNodeJS.NodejsFunction;
   moviesAdminHandler: lambdaNodeJS.NodejsFunction;
   ordersHandler: lambdaNodeJS.NodejsFunction;
+  infosAdminHandler: lambdaNodeJS.NodejsFunction;
 }
 
 export class ECommerceApiStack extends cdk.Stack {
@@ -53,6 +54,9 @@ export class ECommerceApiStack extends cdk.Stack {
 
     //ORDERS
     this.createOrdersService(props, api);
+
+    //Infos
+    this.createInfosService(props, api);
   }
 
   private createProductsService(
@@ -167,5 +171,40 @@ export class ECommerceApiStack extends cdk.Stack {
     // });
 
     ordersResource.addMethod("POST", ordersIntegration);
+  }
+
+  private createInfosService(
+    props: ECommerceApiStackProps,
+    api: cdk.aws_apigateway.RestApi
+  ) {
+    const infosIntegration = new apigateway.LambdaIntegration(
+      props.infosAdminHandler
+    );
+
+    //resource
+    const infosResource = api.root.addResource("infos");
+
+    //GET
+    infosResource.addMethod("GET", infosIntegration);
+
+    //DELETE
+    const infosDeletetionValidator = new apigateway.RequestValidator(
+      this,
+      "infosDeletetionValidator",
+      {
+        restApi: api,
+        requestValidatorName: "infosDeletetionValidator",
+        validateRequestParameters: true,
+      }
+    );
+    infosResource.addMethod("DELETE", infosIntegration, {
+      requestParameters: {
+        "method.request.querystring.infoId": true,
+      },
+      requestValidator: infosDeletetionValidator,
+    });
+
+    infosResource.addMethod("POST", infosIntegration);
+    infosResource.addMethod("PUT", infosIntegration);
   }
 }

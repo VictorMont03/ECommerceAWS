@@ -15,6 +15,7 @@ export interface OrderMovie {
   movieTitle: string;
   movieSession: string;
   movieChairs: Chair[];
+  id: string;
 }
 
 export interface Order {

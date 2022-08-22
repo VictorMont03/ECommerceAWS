@@ -160,6 +160,9 @@ export async function handler(
 
     try {
       const orderDeleted = await orderRepository.deleteOrder(email, orderId);
+      const movie = await movieRepository.getMovieById(orderDeleted.movie.id);
+      const movieUpdated = updateMovieChairsDeleted(movie, orderDeleted);
+      await movieRepository.updateMovie(orderDeleted.movie.id, movieUpdated);
 
       return {
         statusCode: 200,
@@ -191,6 +194,7 @@ function buildOrder(
     movieTitle: movie.movieTitle,
     movieSession: movie.movieSession,
     movieChairs: orderRequest.movieChairs,
+    id: movie.id,
   };
   let totalPrice = 0;
 
@@ -226,6 +230,7 @@ function convertToOrderResponse(order: Order): OrderResponse {
     movieTitle: order.movie.movieTitle,
     movieSession: order.movie.movieSession,
     movieChairs: order.movie.movieChairs,
+    id: order.movie.id,
   };
 
   order.products.forEach((product) => {
@@ -255,6 +260,18 @@ function updateMovieChairs(movie: Movie, orderRequest: OrderRequest): Movie {
     orderRequest.movieChairs.map((chairSelected) => {
       if (chairSelected.id === chair.id) {
         chair.reservation = true;
+      }
+    });
+  });
+
+  return movie;
+}
+
+function updateMovieChairsDeleted(movie: Movie, orderRequest: Order): Movie {
+  movie.movieChairs.map((chair) => {
+    orderRequest.movie.movieChairs.map((chairSelected) => {
+      if (chairSelected.id === chair.id) {
+        chair.reservation = false;
       }
     });
   });

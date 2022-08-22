@@ -12,6 +12,10 @@ import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 //Iam
 import * as iam from "aws-cdk-lib/aws-iam";
 
+//SQS
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as lambdaEventSource from "aws-cdk-lib/aws-lambda-event-sources";
+
 interface OrdersAppStackProps extends cdk.StackProps {
   productsDdb: dynamodb.Table;
   moviesDdb: dynamodb.Table;
@@ -185,5 +189,53 @@ export class OrdersAppStack extends cdk.Stack {
     });
 
     orderEventsHandler.addToRolePolicy(eventsDdbPolicy);
+
+    const orderEventsQueue = new sqs.Queue(this, "OrderEventsQueue", {
+      queueName: "order-events",
+    });
+
+    ordersTopic.addSubscription(
+      new subs.SqsSubscription(orderEventsQueue, {
+        filterPolicy: {
+          eventType: sns.SubscriptionFilter.stringFilter({
+            allowlist: ["ORDER_CREATED"],
+          }),
+        },
+      })
+    );
+
+    //Orders email function
+    const orderEmailsHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "OrderEmailsFunction",
+      {
+        functionName: "OrderEmailsFunction",
+        entry: "lambda/orders/orderEmailsFunction.ts",
+        handler: "handler",
+        memorySize: 128,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        layers: [orderEventsLayer],
+        tracing: lambda.Tracing.ACTIVE,
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    orderEmailsHandler.addEventSource(
+      new lambdaEventSource.SqsEventSource(orderEventsQueue)
+    );
+    orderEventsQueue.grantConsumeMessages(orderEmailsHandler);
+
+    //permissao da funcao pra enviar emails
+    const orderEmailSesPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["ses:SendEmail", "ses:SendRawEmail"],
+      resources: ["*"],
+    });
+
+    orderEmailsHandler.addToRolePolicy(orderEmailSesPolicy);
   }
 }

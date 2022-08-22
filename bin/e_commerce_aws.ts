@@ -7,6 +7,8 @@ import { ProductsAppLayersStack } from "../lib/productsAppLayers-stack";
 import { EventsDdbStack } from "../lib/eventsDdb-stack";
 import { OrdersAppLayersStack } from "../lib/ordersAppLayers-stack";
 import { OrdersAppStack } from "../lib/ordersApp-stack";
+import { InfosAppStack } from "../lib/infosApp-stack";
+import { InfosAppLayersStack } from "../lib/infosAppLayers-stack";
 
 //Cinema
 import { MoviesAppStack } from "../lib/moviesApp-stack";
@@ -75,12 +77,25 @@ ordersAppStack.addDependency(moviesAppStack);
 ordersAppStack.addDependency(ordersAppLayerStack);
 ordersAppStack.addDependency(eventsDdbStack);
 
+const infosAppLayersStack = new InfosAppLayersStack(app, "InfosAppLayers", {
+  tags: tags,
+  env: env,
+});
+
+const infosAppStack = new InfosAppStack(app, "InfosApp", {
+  tags: tags,
+  env: env,
+});
+
+infosAppStack.addDependency(infosAppLayersStack);
+
 const eCommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
   productsFetchHandler: productsAppStack.productsFetchHandler,
   productsAdminHandler: productsAppStack.productsAdminHandler,
   moviesFetchHandler: moviesAppStack.moviesFetchHandler,
   moviesAdminHandler: moviesAppStack.moviesAdminHandler,
   ordersHandler: ordersAppStack.ordersHandler,
+  infosAdminHandler: infosAppStack.infosAdminHandler,
   tags: tags,
   env: env,
 });
@@ -88,3 +103,4 @@ const eCommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
 eCommerceApiStack.addDependency(productsAppStack);
 eCommerceApiStack.addDependency(moviesAppStack);
 eCommerceApiStack.addDependency(ordersAppStack);
+eCommerceApiStack.addDependency(infosAppStack);
