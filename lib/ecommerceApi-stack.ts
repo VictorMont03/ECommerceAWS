@@ -143,6 +143,29 @@ export class ECommerceApiStack extends cdk.Stack {
     });
 
     //POST
+    // const orderRequestValidator = new apigateway.RequestValidator(
+    //   this,
+    //   "OrderRequestValidator",
+    //   {
+    //     restApi: api,
+    //     requestValidatorName: "Order request validator",
+    //     validateRequestBody: true,
+    //   }
+    // );
+
+    // const orderModel = new apigateway.Model(this, "OrderModel", {
+    //   modelName: "OrderModel",
+    //   restApi: api,
+    //   schema:{
+    //     type: apigateway.JsonSchemaType.STRING,
+    //     properties: {
+    //       email: {
+    //         type: apigateway.JsonSchemaType.STRING
+    //       }
+    //     }
+    //   }
+    // });
+
     ordersResource.addMethod("POST", ordersIntegration);
   }
 }

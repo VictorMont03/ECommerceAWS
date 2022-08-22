@@ -5,9 +5,17 @@ import * as lambdaNodeJS from "aws-cdk-lib/aws-lambda-nodejs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 
+//SNS
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
+
+//Iam
+import * as iam from "aws-cdk-lib/aws-iam";
+
 interface OrdersAppStackProps extends cdk.StackProps {
   productsDdb: dynamodb.Table;
   moviesDdb: dynamodb.Table;
+  eventsDdb: dynamodb.Table;
 }
 
 export class OrdersAppStack extends cdk.Stack {
@@ -53,6 +61,29 @@ export class OrdersAppStack extends cdk.Stack {
       ordersApiLayerArn
     );
 
+    //Events layer
+    const orderEventsLayerArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      "OrderEventsLayerVersionArn"
+    );
+    const orderEventsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "OrderEventsLayerVersionArn",
+      orderEventsLayerArn
+    );
+
+    //Order events repository
+    const orderEventsRepositoryLayerArn =
+      ssm.StringParameter.valueForStringParameter(
+        this,
+        "OrderEventsRepositoryLayerVersionArn"
+      );
+    const orderEventsRepositoryLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "OrderEventsRepositoryLayerVersionArn",
+      orderEventsRepositoryLayerArn
+    );
+
     //Product Layer
     const productsLayerArn = ssm.StringParameter.valueForStringParameter(
       this,
@@ -77,6 +108,12 @@ export class OrdersAppStack extends cdk.Stack {
       moviesLayerArn
     );
 
+    //sns
+    const ordersTopic = new sns.Topic(this, "OrdersEventsTopic", {
+      displayName: "Orders events topic",
+      topicName: "order-events",
+    });
+
     //Handler
     this.ordersHandler = new lambdaNodeJS.NodejsFunction(
       this,
@@ -95,6 +132,7 @@ export class OrdersAppStack extends cdk.Stack {
           MOVIES_DDB: props.moviesDdb.tableName,
           PRODUCTS_DDB: props.productsDdb.tableName,
           ORDERS_DDB: ordersDdb.tableName,
+          ORDER_EVENTS_TOPIC_ARN: ordersTopic.topicArn,
         },
         layers: [ordersLayer, productsLayer, moviesLayer, ordersApiLayer],
         tracing: lambda.Tracing.ACTIVE,
@@ -105,5 +143,47 @@ export class OrdersAppStack extends cdk.Stack {
     ordersDdb.grantReadWriteData(this.ordersHandler);
     props.productsDdb.grantReadData(this.ordersHandler);
     props.moviesDdb.grantReadWriteData(this.ordersHandler);
+
+    ordersTopic.grantPublish(this.ordersHandler);
+
+    //
+    const orderEventsHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "OrderEventsFunction",
+      {
+        functionName: "OrderEventsFunction",
+        entry: "lambda/orders/orderEventsFunction.ts",
+        handler: "handler",
+        memorySize: 128,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          EVENTS_DDB: props.eventsDdb.tableName,
+        },
+        layers: [orderEventsLayer, orderEventsRepositoryLayer],
+        tracing: lambda.Tracing.ACTIVE,
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    ordersTopic.addSubscription(
+      new subs.LambdaSubscription(orderEventsHandler)
+    );
+
+    const eventsDdbPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: [props.eventsDdb.tableArn],
+      conditions: {
+        ["ForAllValues:StringLike"]: {
+          "dynamodb:LeadingKeys": ["#order_*"],
+        },
+      },
+    });
+
+    orderEventsHandler.addToRolePolicy(eventsDdbPolicy);
   }
 }

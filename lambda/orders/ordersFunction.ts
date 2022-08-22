@@ -1,4 +1,4 @@
-import { DynamoDB } from "aws-sdk";
+import { DynamoDB, SNS } from "aws-sdk";
 import { Order, OrderProduct, OrderRepository } from "/opt/nodejs/ordersLayer";
 import { Product, ProductRepository } from "/opt/nodejs/productsLayer";
 import { Movie, MovieRepository } from "/opt/nodejs/moviesLayer";
@@ -15,14 +15,42 @@ import {
   OrderResponse,
   PaymentType,
 } from "/opt/nodejs/ordersApiLayer";
+// import {
+//   OrderEvent,
+//   OrderEventType,
+//   Envelope,
+// } from "/opt/nodejs/orderEventsLayer";
+export enum OrderEventType {
+  CREATED = "ORDER_CREATED",
+  DELETED = "ORDER_DELETED",
+}
+
+export interface Envelope {
+  eventType: OrderEventType;
+  data: string;
+}
+
+export interface OrderEvent {
+  email: string;
+  orderId: string;
+  billing: {
+    payment: string;
+    totalPrice: number;
+  };
+  productCodes: string[];
+  movieId: string;
+  requestId: string;
+}
 
 AWSXRay.captureAWS(require("aws-sdk"));
 
 const ordersDdb = process.env.ORDERS_DDB!;
 const productsDdb = process.env.PRODUCTS_DDB!;
 const moviesDdb = process.env.MOVIES_DDB!;
+const orderEventsTopicArn = process.env.ORDER_EVENTS_TOPIC_ARN!;
 
 const ddbClient = new DynamoDB.DocumentClient();
+const snsClient = new SNS();
 
 const orderRepository = new OrderRepository(ddbClient, ordersDdb);
 const productRepository = new ProductRepository(ddbClient, productsDdb);
@@ -99,6 +127,17 @@ export async function handler(
       const orderResponse = convertToOrderResponse(orderCreated);
 
       const movieUpdated = updateMovieChairs(movie, orderRequest);
+
+      const eventResult = await sendOrderEvent(
+        orderCreated,
+        movie,
+        OrderEventType.CREATED,
+        lambdaRequestId
+      );
+      console.log(
+        `Order created event sent - OrderID: ${orderCreated.sk} - MessageID: ${eventResult.MessageId}`
+      );
+
       try {
         await movieRepository.updateMovie(movieUpdated.id, movieUpdated);
       } catch (error) {
@@ -221,4 +260,39 @@ function updateMovieChairs(movie: Movie, orderRequest: OrderRequest): Movie {
   });
 
   return movie;
+}
+
+function sendOrderEvent(
+  order: Order,
+  movie: Movie,
+  eventType: OrderEventType,
+  lambdaRequestId: string
+) {
+  const productCodes: string[] = [];
+  order.products.forEach((product) => {
+    productCodes.push(product.code);
+  });
+
+  const movieId = movie.id;
+
+  const orderEvent: OrderEvent = {
+    productCodes: productCodes,
+    email: order.pk,
+    orderId: order.sk!,
+    billing: order.billing,
+    movieId: movieId,
+    requestId: lambdaRequestId,
+  };
+
+  const envelope: Envelope = {
+    eventType: eventType,
+    data: JSON.stringify(orderEvent),
+  };
+
+  return snsClient
+    .publish({
+      TopicArn: orderEventsTopicArn,
+      Message: JSON.stringify(envelope),
+    })
+    .promise();
 }
